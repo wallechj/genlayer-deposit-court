@@ -33,10 +33,10 @@ Every verdict carries a one-sentence evidence note stored on-chain, naming the f
 | Item | Description | Amount | Expected |
 | --- | --- | --- | --- |
 | 0 | Broken living-room window | 0.3 GEN | upheld — inspection notes show the crack, move-in checklist shows the window intact |
-| 1 | Repainting the whole apartment | 0.5 GEN | rejected — only light scuffs after 2 years, which the lease calls normal wear |
+| 1 | Repainting scuffed living-room walls | 0.5 GEN | rejected — only light scuffs after 2 years, which the lease calls normal wear |
 | 2 | Unpaid final utility bill | 0.2 GEN | upheld — final bill, utilities are the tenant's responsibility per the lease |
 
-Deposit 1 GEN, upheld total 0.5 GEN, refund 0.5 GEN. The tenant's response accepts the window and the bill and disputes only the repainting. A second case with no deductions adjudicates to a full refund.
+Deposit 1 GEN, upheld total 0.5 GEN, refund 0.5 GEN. The tenant's response claims the window was already cracked at move-in and accepts the utility bill; validators still upheld the window deduction, because the fetched move-in checklist shows the window intact. A second case with no deductions adjudicates to a full refund.
 
 ## Files
 
