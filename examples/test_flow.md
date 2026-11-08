@@ -30,7 +30,7 @@ Negative tests (must fail with the exact message):
 
 As A, call file_deduction three times (examples/sample_deduction_0/1/2.json):
 - 0: "Broken living-room window", 300000000000000000, evidence_window.md
-- 1: "Repainting the whole apartment", 500000000000000000, evidence_wear.md
+- 1: "Repainting scuffed living-room walls", 500000000000000000, evidence_wear.md
 - 2: "Unpaid final utility bill", 200000000000000000, evidence_utility.md
 
 Expected: returns 0, 1, 2. Read back get_deduction(i): status "filed".
@@ -43,9 +43,9 @@ Negative tests:
 
 ## 3. Tenant responds
 
-As B, call respond(0, "I accept the utility bill and the window repair. The repainting charge is normal wear after two years — the walls only have light scuffs, and the lease says normal wear is the landlord's cost.").
+As B, call respond(0, "The window was already cracked when I moved in, and the lease states normal wear is the tenant's responsibility only after a documented move-in inspection — there was none. The utility bill is for the final month and I accept it.").
 
-Expected: null. Read back get_case(0): tenant_statement set.
+Expected: null. Read back get_case(0): tenant_statement set. Note the response is adversarial — it claims the window was pre-existing damage. Validators still upheld the window deduction, because the fetched move-in checklist shows the window intact at move-in.
 
 Negative tests:
 - as A, respond → "only the tenant can respond"
