@@ -5,6 +5,13 @@ import time
 from dataclasses import dataclass
 
 
+# Intake window: after a case is opened, both parties have 7 days to file.
+# Adjudication opens only once filing is final (landlord closed filing and
+# tenant responded) or once this deadline has passed, so no case can be
+# decided while either side can still file.
+FILING_WINDOW_SECONDS = 604800
+
+
 @allow_storage
 @dataclass
 class Case:
@@ -20,6 +27,8 @@ class Case:
     summary: str
     evidence: str
     created_at: u256
+    filing_deadline: u256
+    filing_closed: bool
 
 
 @allow_storage
@@ -58,6 +67,7 @@ class DepositCourt(gl.Contract):
         if int(deposit) <= 0:
             raise gl.vm.UserError("deposit must be greater than zero")
         case_id = self.case_counter
+        now = u256(int(time.time()))
         self.cases[case_id] = Case(
             landlord=str(gl.message.sender_address),
             tenant=tenant.strip(),
@@ -70,7 +80,9 @@ class DepositCourt(gl.Contract):
             status="open",
             summary="",
             evidence="",
-            created_at=u256(int(time.time())),
+            created_at=now,
+            filing_deadline=u256(int(now) + FILING_WINDOW_SECONDS),
+            filing_closed=False,
         )
         self.case_counter = case_id + u256(1)
         return case_id
@@ -82,6 +94,10 @@ class DepositCourt(gl.Contract):
             raise gl.vm.UserError("case is not open for deductions")
         if str(gl.message.sender_address) != case.landlord:
             raise gl.vm.UserError("only the landlord can file deductions")
+        if int(time.time()) >= int(case.filing_deadline):
+            raise gl.vm.UserError("filing period has ended")
+        if case.filing_closed:
+            raise gl.vm.UserError("landlord has closed filing")
         if not description.strip():
             raise gl.vm.UserError("description is required")
         if int(amount) <= 0:
@@ -103,12 +119,28 @@ class DepositCourt(gl.Contract):
         return deduction_id
 
     @gl.public.write
+    def close_filing(self, case_id: u256) -> None:
+        case = self.cases[case_id]
+        if case.status != "open":
+            raise gl.vm.UserError("case is not open")
+        if str(gl.message.sender_address) != case.landlord:
+            raise gl.vm.UserError("only the landlord can close filing")
+        if case.filing_closed:
+            raise gl.vm.UserError("filing is already closed")
+        case.filing_closed = True
+        self.cases[case_id] = case
+
+    @gl.public.write
     def respond(self, case_id: u256, statement: str) -> None:
         case = self.cases[case_id]
         if case.status != "open":
             raise gl.vm.UserError("case is not open for responses")
         if str(gl.message.sender_address) != case.tenant:
             raise gl.vm.UserError("only the tenant can respond")
+        if not case.filing_closed:
+            raise gl.vm.UserError("landlord has not closed filing yet")
+        if int(time.time()) >= int(case.filing_deadline):
+            raise gl.vm.UserError("filing period has ended")
         if case.tenant_statement.strip():
             raise gl.vm.UserError("tenant has already responded")
         if not statement.strip():
@@ -121,6 +153,18 @@ class DepositCourt(gl.Contract):
         case = self.cases[case_id]
         if case.status != "open":
             raise gl.vm.UserError("case is not open for adjudication")
+        # Non-bypassable filing/response boundary: adjudication opens only
+        # once intake is final (landlord closed filing AND tenant responded)
+        # or once the filing deadline has passed, so neither side can be cut
+        # off while it can still file. Anyone may trigger adjudication once
+        # the boundary is met — the verdict is decided by validators, and a
+        # party-restricted trigger would let one side stall the case forever.
+        intake_final = case.filing_closed and bool(case.tenant_statement.strip())
+        deadline_passed = int(time.time()) >= int(case.filing_deadline)
+        if not (intake_final or deadline_passed):
+            raise gl.vm.UserError(
+                "adjudication is not open yet: landlord must close filing and tenant must respond, or the filing deadline must pass"
+            )
         lease_url = case.lease_url
         tenant_statement = case.tenant_statement
         items = []
@@ -265,3 +309,20 @@ class DepositCourt(gl.Contract):
     @gl.public.view
     def get_case_evidence(self, case_id: u256) -> str:
         return self.cases[case_id].evidence
+
+    @gl.public.view
+    def get_filing_deadline(self, case_id: u256) -> u256:
+        return self.cases[case_id].filing_deadline
+
+    @gl.public.view
+    def get_filing_closed(self, case_id: u256) -> bool:
+        return self.cases[case_id].filing_closed
+
+    @gl.public.view
+    def can_adjudicate(self, case_id: u256) -> bool:
+        case = self.cases[case_id]
+        if case.status != "open":
+            return False
+        intake_final = case.filing_closed and bool(case.tenant_statement.strip())
+        deadline_passed = int(time.time()) >= int(case.filing_deadline)
+        return bool(intake_final or deadline_passed)
