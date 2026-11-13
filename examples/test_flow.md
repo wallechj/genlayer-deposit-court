@@ -1,7 +1,7 @@
 # DepositCourt — test flow (v2)
 
 Two Studio test accounts: A = landlord (deployer), B = tenant.
-Deployed contract address: (fill in after deploy)
+Deployed contract address: 0x94F7Cf96FA603Bb7df38084d77BC92581D5802B1
 Amounts are in wei. Deposit 1 GEN = 1000000000000000000.
 
 Fixture files must be live on the repo's main branch BEFORE running the adjudication steps (validators fetch them at adjudication time):
