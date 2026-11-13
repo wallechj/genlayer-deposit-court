@@ -8,15 +8,20 @@ Deposit fights are the most common landlord-tenant dispute, and they are almost 
 
 ## How it works
 
-1. **open_case** — the landlord opens a case against a tenant, naming the lease URL and the deposit amount. The lease URL is declared by the landlord at creation, so validators know exactly which document governs the case.
-2. **file_deduction** — the landlord files one deduction per line item: a description, an amount, and an evidence URL (inspection notes, photo page, final bill). Each item is capped at the deposit amount.
-3. **respond** — the tenant files one statement for the case (optional). It is a claim, not proof.
-4. **adjudicate** — validators fetch the lease and every deduction's evidence page themselves, then decide each item:
+1. **open_case** — the landlord opens a case against a tenant, naming the lease URL and the deposit amount. The lease URL is declared by the landlord at creation, so validators know exactly which document governs the case. Opening sets a filing deadline 7 days out (`filing_deadline = created_at + 604800`).
+2. **file_deduction** — the landlord files one deduction per line item: a description, an amount, and an evidence URL (inspection notes, photo page, final bill). Each item is capped at the deposit amount. Filing stops when the landlord closes filing or the deadline passes.
+3. **close_filing** — the landlord (only the landlord) declares the item list final. No more deductions can be filed after this.
+4. **respond** — the tenant files one statement, after the landlord has closed filing, so the tenant answers the final item list rather than a moving target. It is a claim, not proof.
+5. **adjudicate** — opens only once the filing boundary is met: either intake is final (landlord closed filing AND tenant responded) or the 7-day filing deadline has passed, so a non-responsive party cannot stall the case forever. Before that, adjudication fails — no empty or half-filed case can be decided early. Anyone may trigger adjudication once it is open; the verdict is decided by validators, and restricting the trigger to one party would let that party stall the case forever. Validators fetch the lease and every deduction's evidence page themselves, then decide each item:
    - **upheld** only if the fetched evidence shows damage beyond normal wear and tear that happened during the tenancy, and the lease makes the tenant liable;
    - **rejected** for normal wear (scuffs, fading, minor marks after a long tenancy), pre-existing damage, or no evidence at all — no proof, no deduction.
    - The refund is then computed deterministically on-chain: `refund = deposit - sum(upheld items)`, floored at zero. No LLM ever touches the money math.
-5. **mark_paid** — the landlord confirms the refund was paid.
-6. **close_case** — the landlord closes the case (withdraw an open case, or archive a paid one).
+6. **mark_paid** — the landlord confirms the refund was paid.
+7. **close_case** — the landlord closes the case (withdraw an open case, or archive a paid one).
+
+## The filing boundary
+
+The boundary is enforced on both sides of adjudication. Before it opens, `adjudicate` fails with "adjudication is not open yet", and `can_adjudicate` reads false. After the landlord closes filing, no further deduction can be filed; before the landlord closes filing, the tenant cannot respond; after the 7-day deadline, no filing or response is accepted at all. The deadline is a fixed contract constant (`FILING_WINDOW_SECONDS = 604800`), not a per-case parameter, so no party can shorten it. The two opening conditions are visible on-chain: `get_filing_deadline` returns the deadline, `get_filing_closed` the landlord's declaration, and `can_adjudicate` the gate itself.
 
 Every verdict carries a one-sentence evidence note stored on-chain, naming the fetched material that decided it. A case with no deductions adjudicates to a full refund.
 
@@ -50,3 +55,10 @@ Deposit 1 GEN, upheld total 0.5 GEN, refund 0.5 GEN. The tenant's response claim
 1. Upload `contracts/deposit_court.py` to GenLayer Studio and deploy.
 2. Follow `examples/test_flow.md` with two test accounts (landlord, tenant).
 3. Verify every write with a view read-back (`get_case`, `get_deduction`, `get_case_refund`).
+
+## Verification (v2)
+
+- Deployed contract: (fill in after deploy)
+- Studio verification: (fill in after deploy — expected 38 transactions: 16 SUCCESS, 22 intentional ERRORs)
+- v1 contract 0x6C8cd51B936280243E0382613f75BA21B5e5253C was superseded by v2: v1 allowed adjudication immediately after opening, before either party had finished filing. v2 adds the filing boundary described above; the verdict logic is unchanged.
+- Known boundary (same class as before, not fixed): reading a nonexistent case or deduction fails with a raw `KeyError` (TreeMap lookup) instead of a friendly message — still rejected, not a valid read.
