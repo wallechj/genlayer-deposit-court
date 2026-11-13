@@ -58,7 +58,11 @@ Deposit 1 GEN, upheld total 0.5 GEN, refund 0.5 GEN. The tenant's response claim
 
 ## Verification (v2)
 
-- Deployed contract: (fill in after deploy)
-- Studio verification: (fill in after deploy — expected 38 transactions: 16 SUCCESS, 22 intentional ERRORs)
+- Deployed contract: 0x94F7Cf96FA603Bb7df38084d77BC92581D5802B1 ([explorer](https://explorer-studio.genlayer.com/address/0x94F7Cf96FA603Bb7df38084d77BC92581D5802B1)), deployed 2026-11-13 on GenLayer Studio.
+- Studio verification 2026-11-13: 38 transactions — 16 SUCCESS, 22 intentional ERRORs (deploy 1 + 15 successful calls + 22 negative tests), every step matching `examples/test_flow.md`.
+- Premature adjudication fails at all four attempts (right after opening, after deductions, after close before response, and on the second case before close); `can_adjudicate` reads false until the tenant responds, then true.
+- `filing_deadline` reads back as `created_at + 604800` on both cases; the 7-day deadline fallback is enforced by the same gate as the mutual-completion path (it cannot be fast-forwarded in Studio, so the live demo exercises mutual completion).
+- Verdicts unchanged from v1: window 0.3 upheld, repainting 0.5 rejected as normal wear, utility 0.2 upheld, refund 0.5 of 1 GEN; the no-deduction case refunds in full. 22 negative tests pass.
 - v1 contract 0x6C8cd51B936280243E0382613f75BA21B5e5253C was superseded by v2: v1 allowed adjudication immediately after opening, before either party had finished filing. v2 adds the filing boundary described above; the verdict logic is unchanged.
+- Studio UI note: the number input shows large u256 values as float approximations (1 GEN displays as 999999984306749440); the submitted value is exact — read-backs confirm deposit 1000000000000000000 on-chain.
 - Known boundary (same class as before, not fixed): reading a nonexistent case or deduction fails with a raw `KeyError` (TreeMap lookup) instead of a friendly message — still rejected, not a valid read.
